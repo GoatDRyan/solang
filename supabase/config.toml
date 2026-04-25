@@ -1,0 +1,165 @@
+
+[functions.ai-tutor]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-tutor/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-tutor/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-tutor/*.html" ]
+
+[functions.ai-weekly-plan]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-weekly-plan/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-weekly-plan/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-weekly-plan/*.html" ]
+
+[functions.ai-toefl-reading-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-reading-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-reading-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-reading-generate/*.html" ]
+
+[functions.ai-toefl-reading-evaluate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-reading-evaluate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-reading-evaluate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-reading-evaluate/*.html" ]
+
+[functions.ai-toefl-listening-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-listening-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-listening-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-listening-generate/*.html" ]
+
+[functions.ai-toefl-listening-evaluate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-listening-evaluate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-listening-evaluate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-listening-evaluate/*.html" ]
+
+[functions.ai-toefl-listening-audio-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-listening-audio-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-listening-audio-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-listening-audio-generate/*.html" ]
+
+[functions.ai-toefl-writing-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-writing-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-writing-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-writing-generate/*.html" ]
+
+[functions.ai-toefl-writing-evaluate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-writing-evaluate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-writing-evaluate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-writing-evaluate/*.html" ]
+
+[functions.ai-toefl-speaking-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-speaking-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-speaking-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-speaking-generate/*.html" ]
+
+[functions.ai-toefl-speaking-audio-upload]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-speaking-audio-upload/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-speaking-audio-upload/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-speaking-audio-upload/*.html" ]
+
+[functions.ai-toefl-speaking-evaluate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-speaking-evaluate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-speaking-evaluate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-speaking-evaluate/*.html" ]
+
+[functions.ai-toefl-speaking-stimulus-audio-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-toefl-speaking-stimulus-audio-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-toefl-speaking-stimulus-audio-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-toefl-speaking-stimulus-audio-generate/*.html" ]
+
+[functions.ai-roadmap-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-roadmap-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-roadmap-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-roadmap-generate/*.html" ]
+
+[functions.ai-weekly-plan-generate]
+enabled = true
+verify_jwt = true
+import_map = "./functions/ai-weekly-plan-generate/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/ai-weekly-plan-generate/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/ai-weekly-plan-generate/*.html" ]
