@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Headphones, Lock, Play, Sparkles, StickyNote } from 'lucide-react';
 
 function formatQuestionType(type) {
@@ -32,6 +32,7 @@ export default function ToeflListeningTask({
   onCurrentItemIndexChange,
   onGenerateAudio,
   generatingAudioItemId,
+  onAudioBusyChange = () => {},
 }) {
   const audioRef = useRef(null);
 
@@ -39,6 +40,8 @@ export default function ToeflListeningTask({
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [isLocalGeneratingAudio, setIsLocalGeneratingAudio] = useState(false);
   const [audioError, setAudioError] = useState('');
 
   const currentItem = items[currentItemIndex] || null;
@@ -50,8 +53,28 @@ export default function ToeflListeningTask({
     : false;
 
   const hasAudio = Boolean(currentItem?.audioUrl);
+
   const isGeneratingCurrentAudio =
-    currentItem && generatingAudioItemId === currentItem.id;
+    Boolean(currentItem) &&
+    (generatingAudioItemId === currentItem.id || isLocalGeneratingAudio);
+
+  const isAudioBusy =
+    Boolean(generatingAudioItemId) || isLocalGeneratingAudio || isAudioLoading;
+
+  useEffect(() => {
+    onAudioBusyChange(isAudioBusy);
+  }, [isAudioBusy, onAudioBusyChange]);
+
+  useEffect(() => {
+    return () => {
+      onAudioBusyChange(false);
+    };
+  }, [onAudioBusyChange]);
+
+  useEffect(() => {
+    setIsAudioLoading(false);
+    setAudioError('');
+  }, [currentItem?.id]);
 
   const answeredCount = useMemo(() => {
     return items
@@ -80,6 +103,21 @@ export default function ToeflListeningTask({
     });
   };
 
+  const handleGenerateCurrentAudio = async () => {
+    if (!currentItem || isGeneratingCurrentAudio) return;
+
+    setAudioError('');
+    setIsLocalGeneratingAudio(true);
+
+    try {
+      await onGenerateAudio(currentItem);
+    } catch (error) {
+      setAudioError(error.message || 'Audio generation failed.');
+    } finally {
+      setIsLocalGeneratingAudio(false);
+    }
+  };
+
   const handleStartAudio = async () => {
     if (!audioRef.current || !currentItem || hasPlayedCurrentItem || !hasAudio) {
       return;
@@ -91,16 +129,19 @@ export default function ToeflListeningTask({
       audioRef.current.currentTime = 0;
       await audioRef.current.play();
       setIsAudioPlaying(true);
+      setIsAudioLoading(false);
     } catch (error) {
       setAudioError(
         error.message || 'Audio could not start. Please try again.'
       );
       setIsAudioPlaying(false);
+      setIsAudioLoading(false);
     }
   };
 
   const handleAudioEnded = () => {
     setIsAudioPlaying(false);
+    setIsAudioLoading(false);
 
     if (!currentItem) return;
 
@@ -109,6 +150,12 @@ export default function ToeflListeningTask({
     }
 
     setCurrentQuestionIndex(0);
+  };
+
+  const handleAudioError = () => {
+    setIsAudioPlaying(false);
+    setIsAudioLoading(false);
+    setAudioError('Audio failed to load. Check the generated audio URL.');
   };
 
   const goToItem = (nextIndex) => {
@@ -121,6 +168,7 @@ export default function ToeflListeningTask({
       setIsAudioPlaying(false);
     }
 
+    setIsAudioLoading(false);
     onCurrentItemIndexChange(nextIndex);
     setCurrentQuestionIndex(0);
     setAudioError('');
@@ -189,10 +237,14 @@ export default function ToeflListeningTask({
                 ref={audioRef}
                 src={currentItem.audioUrl}
                 preload="auto"
+                onLoadStart={() => setIsAudioLoading(true)}
+                onLoadedData={() => setIsAudioLoading(false)}
+                onCanPlay={() => setIsAudioLoading(false)}
+                onCanPlayThrough={() => setIsAudioLoading(false)}
+                onWaiting={() => setIsAudioLoading(true)}
+                onPlaying={() => setIsAudioLoading(false)}
                 onEnded={handleAudioEnded}
-                onError={() =>
-                  setAudioError('Audio failed to load. Check the generated audio URL.')
-                }
+                onError={handleAudioError}
               />
             )}
 
@@ -200,12 +252,14 @@ export default function ToeflListeningTask({
               {!hasAudio && (
                 <button
                   type="button"
-                  onClick={() => onGenerateAudio(currentItem)}
+                  onClick={handleGenerateCurrentAudio}
                   disabled={isGeneratingCurrentAudio}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Sparkles size={16} />
-                  {isGeneratingCurrentAudio ? 'Generating audio...' : 'Generate audio'}
+                  {isGeneratingCurrentAudio
+                    ? 'Generating audio...'
+                    : 'Generate audio'}
                 </button>
               )}
 
@@ -213,7 +267,7 @@ export default function ToeflListeningTask({
                 <button
                   type="button"
                   onClick={handleStartAudio}
-                  disabled={hasPlayedCurrentItem || isAudioPlaying}
+                  disabled={hasPlayedCurrentItem || isAudioPlaying || isAudioLoading}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {hasPlayedCurrentItem ? (
@@ -221,6 +275,8 @@ export default function ToeflListeningTask({
                       <Lock size={16} />
                       Audio already played
                     </>
+                  ) : isAudioLoading ? (
+                    'Loading audio...'
                   ) : isAudioPlaying ? (
                     'Playing...'
                   ) : (
@@ -232,6 +288,12 @@ export default function ToeflListeningTask({
                 </button>
               )}
             </div>
+
+            {isAudioBusy && (
+              <p className="mt-3 text-sm text-text-muted">
+                Timer is paused while audio is generating or loading.
+              </p>
+            )}
 
             {audioError && (
               <p className="mt-3 text-sm text-danger-text">{audioError}</p>
@@ -263,7 +325,9 @@ export default function ToeflListeningTask({
         </div>
 
         <div className="rounded-[1.5rem] bg-surface p-5 shadow-[var(--shadow-card)] ring-1 ring-border">
-          <p className="mb-3 text-sm font-semibold text-text">Audio Navigator</p>
+          <p className="mb-3 text-sm font-semibold text-text">
+            Audio Navigator
+          </p>
 
           <div className="flex flex-wrap gap-2">
             {items.map((item, index) => {

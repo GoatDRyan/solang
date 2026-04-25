@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Clock, LogOut, Save } from 'lucide-react';
+import { Clock, LogOut, Pause, Save } from 'lucide-react';
 import { useToeflListeningAttempt } from '../../../hooks/useToeflListeningAttempt';
 import {
   evaluateToeflListeningSection,
@@ -77,6 +77,7 @@ export default function ToeflListeningSessionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [generatingAudioItemId, setGeneratingAudioItemId] = useState(null);
+  const [isAudioBusy, setIsAudioBusy] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
 
@@ -84,6 +85,8 @@ export default function ToeflListeningSessionPage() {
   const hasLoadedDraftRef = useRef(false);
 
   const task = section?.content || null;
+
+  const isTimerPaused = isAudioBusy || Boolean(generatingAudioItemId);
 
   const totalQuestions = useMemo(() => {
     const items = task?.content?.items || [];
@@ -180,6 +183,7 @@ export default function ToeflListeningSessionPage() {
     if (!section?.id || !item?.id) return;
 
     setGeneratingAudioItemId(item.id);
+    setIsAudioBusy(true);
     setSubmitError('');
     setSaveMessage('');
 
@@ -196,8 +200,10 @@ export default function ToeflListeningSessionPage() {
       setSaveMessage('Audio generated.');
     } catch (error) {
       setSubmitError(error.message || 'Failed to generate listening audio.');
+      throw error;
     } finally {
       setGeneratingAudioItemId(null);
+      setIsAudioBusy(false);
     }
   };
 
@@ -270,8 +276,9 @@ export default function ToeflListeningSessionPage() {
   }, [section?.id, section?.answers, section?.duration_minutes, section?.metadata]);
 
   useEffect(() => {
-    if (!section || section.status === 'completed') return;
-    if (isSubmitting) return;
+    if (!section || section.status === 'completed') return undefined;
+    if (isSubmitting) return undefined;
+    if (isTimerPaused) return undefined;
 
     const interval = window.setInterval(() => {
       setRemainingSeconds((prev) => {
@@ -285,10 +292,10 @@ export default function ToeflListeningSessionPage() {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [section, isSubmitting]);
+  }, [section, isSubmitting, isTimerPaused]);
 
   useEffect(() => {
-    if (!section?.id || section.status !== 'in_progress') return;
+    if (!section?.id || section.status !== 'in_progress') return undefined;
 
     const interval = window.setInterval(() => {
       if (dirtyRef.current || remainingSeconds % 10 === 0) {
@@ -391,9 +398,17 @@ export default function ToeflListeningSessionPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-primary-soft px-4 py-3 text-sm font-semibold text-primary">
-              <Clock size={18} />
+            <div
+              className={[
+                'inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold',
+                isTimerPaused
+                  ? 'bg-warning-soft text-warning-text'
+                  : 'bg-primary-soft text-primary',
+              ].join(' ')}
+            >
+              {isTimerPaused ? <Pause size={18} /> : <Clock size={18} />}
               {formatTime(remainingSeconds)}
+              {isTimerPaused && <span>Paused</span>}
             </div>
 
             <button
@@ -427,6 +442,12 @@ export default function ToeflListeningSessionPage() {
           </div>
         </div>
 
+        {isTimerPaused && (
+          <p className="mt-4 text-sm text-warning-text">
+            Timer paused while Solang is generating or loading exam audio.
+          </p>
+        )}
+
         {saveMessage && (
           <p className="mt-4 text-sm text-success-text">{saveMessage}</p>
         )}
@@ -448,6 +469,7 @@ export default function ToeflListeningSessionPage() {
         onCurrentItemIndexChange={markDirtyAndSetCurrentItemIndex}
         onGenerateAudio={handleGenerateAudio}
         generatingAudioItemId={generatingAudioItemId}
+        onAudioBusyChange={setIsAudioBusy}
       />
     </div>
   );

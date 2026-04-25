@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Clock, LogOut, Save } from 'lucide-react';
+import { Clock, LogOut, Pause, Save } from 'lucide-react';
 import { useToeflSpeakingAttempt } from '../../../hooks/useToeflSpeakingAttempt';
 import {
   evaluateToeflSpeakingSection,
@@ -97,6 +97,7 @@ export default function ToeflSpeakingSessionPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [uploadingTaskId, setUploadingTaskId] = useState(null);
   const [generatingStimulusTaskId, setGeneratingStimulusTaskId] = useState(null);
+  const [isAudioBusy, setIsAudioBusy] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
 
@@ -104,6 +105,8 @@ export default function ToeflSpeakingSessionPage() {
   const hasLoadedDraftRef = useRef(false);
 
   const task = section?.content || null;
+
+  const isTimerPaused = isAudioBusy || Boolean(generatingStimulusTaskId);
 
   const totalTasks = useMemo(() => getTaskCount(task), [task]);
   const recordedCount = useMemo(() => getRecordedCount(task), [task]);
@@ -174,6 +177,7 @@ export default function ToeflSpeakingSessionPage() {
     if (!section?.id || !speakingTask?.id) return;
 
     setGeneratingStimulusTaskId(speakingTask.id);
+    setIsAudioBusy(true);
     setSubmitError('');
     setSaveMessage('');
 
@@ -190,8 +194,10 @@ export default function ToeflSpeakingSessionPage() {
       setSaveMessage('Stimulus audio generated.');
     } catch (error) {
       setSubmitError(error.message || 'Failed to generate stimulus audio.');
+      throw error;
     } finally {
       setGeneratingStimulusTaskId(null);
+      setIsAudioBusy(false);
     }
   };
 
@@ -320,8 +326,9 @@ export default function ToeflSpeakingSessionPage() {
   }, [section?.id, section?.duration_minutes, section?.metadata]);
 
   useEffect(() => {
-    if (!section || section.status === 'completed') return;
-    if (isSubmitting) return;
+    if (!section || section.status === 'completed') return undefined;
+    if (isSubmitting) return undefined;
+    if (isTimerPaused) return undefined;
 
     const interval = window.setInterval(() => {
       setRemainingSeconds((prev) => {
@@ -335,10 +342,10 @@ export default function ToeflSpeakingSessionPage() {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [section, isSubmitting]);
+  }, [section, isSubmitting, isTimerPaused]);
 
   useEffect(() => {
-    if (!section?.id || section.status !== 'in_progress') return;
+    if (!section?.id || section.status !== 'in_progress') return undefined;
 
     const interval = window.setInterval(() => {
       if (dirtyRef.current || remainingSeconds % 10 === 0) {
@@ -417,9 +424,17 @@ export default function ToeflSpeakingSessionPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-primary-soft px-4 py-3 text-sm font-semibold text-primary">
-              <Clock size={18} />
+            <div
+              className={[
+                'inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold',
+                isTimerPaused
+                  ? 'bg-warning-soft text-warning-text'
+                  : 'bg-primary-soft text-primary',
+              ].join(' ')}
+            >
+              {isTimerPaused ? <Pause size={18} /> : <Clock size={18} />}
               {formatTime(remainingSeconds)}
+              {isTimerPaused && <span>Paused</span>}
             </div>
 
             <button
@@ -458,6 +473,12 @@ export default function ToeflSpeakingSessionPage() {
           </div>
         </div>
 
+        {isTimerPaused && (
+          <p className="mt-4 text-sm text-warning-text">
+            Timer paused while Solang is generating or loading stimulus audio.
+          </p>
+        )}
+
         {saveMessage && (
           <p className="mt-4 text-sm text-success-text">{saveMessage}</p>
         )}
@@ -477,6 +498,7 @@ export default function ToeflSpeakingSessionPage() {
         generatingStimulusTaskId={generatingStimulusTaskId}
         onUploadAudio={handleUploadAudio}
         uploadingTaskId={uploadingTaskId}
+        onAudioBusyChange={setIsAudioBusy}
       />
     </div>
   );

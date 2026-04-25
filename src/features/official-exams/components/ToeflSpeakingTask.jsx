@@ -128,19 +128,54 @@ function StimulusAudioPanel({
   onStimulusPlayedTaskIdsChange,
   onGenerateStimulusAudio,
   isGeneratingStimulus,
+  onAudioBusyChange = () => {},
 }) {
   const audioRef = useRef(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [isLocalGeneratingStimulus, setIsLocalGeneratingStimulus] =
+    useState(false);
   const [audioError, setAudioError] = useState('');
 
   const needsStimulus = requiresStimulusAudio(task);
   const hasStimulusAudio = Boolean(task.stimulusAudioUrl);
   const hasPlayedStimulus = stimulusPlayedTaskIds.includes(task.id);
 
+  const isAudioBusy =
+    isGeneratingStimulus || isLocalGeneratingStimulus || isAudioLoading;
+
+  useEffect(() => {
+    onAudioBusyChange(isAudioBusy);
+  }, [isAudioBusy, onAudioBusyChange]);
+
+  useEffect(() => {
+    return () => {
+      onAudioBusyChange(false);
+    };
+  }, [onAudioBusyChange]);
+
   useEffect(() => {
     setIsPlaying(false);
+    setIsAudioLoading(false);
+    setIsLocalGeneratingStimulus(false);
     setAudioError('');
   }, [task.id]);
+
+  const handleGenerateStimulusAudio = async () => {
+    if (!task?.id || isGeneratingStimulus || isLocalGeneratingStimulus) return;
+
+    setAudioError('');
+    setIsLocalGeneratingStimulus(true);
+
+    try {
+      await onGenerateStimulusAudio(task);
+    } catch (error) {
+      setAudioError(error.message || 'Stimulus audio generation failed.');
+    } finally {
+      setIsLocalGeneratingStimulus(false);
+    }
+  };
 
   const handlePlayStimulus = async () => {
     if (!audioRef.current || hasPlayedStimulus || !hasStimulusAudio) return;
@@ -151,18 +186,27 @@ function StimulusAudioPanel({
       audioRef.current.currentTime = 0;
       await audioRef.current.play();
       setIsPlaying(true);
+      setIsAudioLoading(false);
     } catch (error) {
       setIsPlaying(false);
+      setIsAudioLoading(false);
       setAudioError(error.message || 'Stimulus audio could not start.');
     }
   };
 
   const handleAudioEnded = () => {
     setIsPlaying(false);
+    setIsAudioLoading(false);
 
     if (!stimulusPlayedTaskIds.includes(task.id)) {
       onStimulusPlayedTaskIdsChange([...stimulusPlayedTaskIds, task.id]);
     }
+  };
+
+  const handleAudioError = () => {
+    setIsPlaying(false);
+    setIsAudioLoading(false);
+    setAudioError('Stimulus audio failed to load.');
   };
 
   if (!needsStimulus) {
@@ -194,8 +238,14 @@ function StimulusAudioPanel({
           ref={audioRef}
           src={task.stimulusAudioUrl}
           preload="auto"
+          onLoadStart={() => setIsAudioLoading(true)}
+          onLoadedData={() => setIsAudioLoading(false)}
+          onCanPlay={() => setIsAudioLoading(false)}
+          onCanPlayThrough={() => setIsAudioLoading(false)}
+          onWaiting={() => setIsAudioLoading(true)}
+          onPlaying={() => setIsAudioLoading(false)}
           onEnded={handleAudioEnded}
-          onError={() => setAudioError('Stimulus audio failed to load.')}
+          onError={handleAudioError}
         />
       )}
 
@@ -203,12 +253,14 @@ function StimulusAudioPanel({
         {!hasStimulusAudio && (
           <button
             type="button"
-            onClick={() => onGenerateStimulusAudio(task)}
-            disabled={isGeneratingStimulus}
+            onClick={handleGenerateStimulusAudio}
+            disabled={isGeneratingStimulus || isLocalGeneratingStimulus}
             className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Sparkles size={16} />
-            {isGeneratingStimulus ? 'Generating audio...' : 'Generate stimulus audio'}
+            {isGeneratingStimulus || isLocalGeneratingStimulus
+              ? 'Generating audio...'
+              : 'Generate stimulus audio'}
           </button>
         )}
 
@@ -216,7 +268,7 @@ function StimulusAudioPanel({
           <button
             type="button"
             onClick={handlePlayStimulus}
-            disabled={hasPlayedStimulus || isPlaying}
+            disabled={hasPlayedStimulus || isPlaying || isAudioLoading}
             className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {hasPlayedStimulus ? (
@@ -224,6 +276,8 @@ function StimulusAudioPanel({
                 <Lock size={16} />
                 Stimulus already played
               </>
+            ) : isAudioLoading ? (
+              'Loading audio...'
             ) : isPlaying ? (
               'Playing...'
             ) : (
@@ -235,6 +289,12 @@ function StimulusAudioPanel({
           </button>
         )}
       </div>
+
+      {isAudioBusy && (
+        <p className="mt-4 text-sm text-text-muted">
+          Timer is paused while Solang is generating or loading stimulus audio.
+        </p>
+      )}
 
       {audioError && <p className="mt-4 text-sm text-danger-text">{audioError}</p>}
 
@@ -586,6 +646,7 @@ export default function ToeflSpeakingTask({
   generatingStimulusTaskId,
   onUploadAudio,
   uploadingTaskId,
+  onAudioBusyChange = () => {},
 }) {
   const tasks = Array.isArray(task?.content?.tasks) ? task.content.tasks : [];
   const currentTask = tasks[currentTaskIndex] || tasks[0] || null;
@@ -634,6 +695,7 @@ export default function ToeflSpeakingTask({
           onStimulusPlayedTaskIdsChange={onStimulusPlayedTaskIdsChange}
           onGenerateStimulusAudio={onGenerateStimulusAudio}
           isGeneratingStimulus={generatingStimulusTaskId === currentTask.id}
+          onAudioBusyChange={onAudioBusyChange}
         />
 
         <div className="flex items-center justify-between gap-3">
