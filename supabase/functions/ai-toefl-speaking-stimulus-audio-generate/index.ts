@@ -65,60 +65,270 @@ function getInlineAudioBase64(response: any) {
   return audioPart?.inlineData?.data || audioPart?.inline_data?.data || '';
 }
 
-function buildStimulusPrompt(task: any) {
-  const isCampus = task.taskType === 'integrated_campus';
+function isCampusConversationTask(task: any) {
+  return (
+    task?.taskType === 'integrated_campus' ||
+    String(task?.taskType || '').toLowerCase().includes('campus')
+  );
+}
+
+function cleanTranscriptLine(line: string) {
+  return String(line || '')
+    .trim()
+    .replace(/^[-*]\s+/, '')
+    .trim();
+}
+
+function isStageDirection(line: string) {
+  const value = String(line || '').trim();
+
+  return (
+    /^\[.*\]$/.test(value) ||
+    /^\(.*\)$/.test(value) ||
+    /^stage direction/i.test(value)
+  );
+}
+
+function mapSpeakerName(rawSpeaker: string, fallbackIndex: number) {
+  const speaker = String(rawSpeaker || '').toLowerCase();
+
+  if (
+    speaker.includes('student') ||
+    speaker.includes('learner') ||
+    speaker.includes('undergraduate')
+  ) {
+    return 'Student';
+  }
+
+  if (
+    speaker.includes('professor') ||
+    speaker.includes('teacher') ||
+    speaker.includes('advisor') ||
+    speaker.includes('adviser') ||
+    speaker.includes('administrator') ||
+    speaker.includes('staff') ||
+    speaker.includes('librarian') ||
+    speaker.includes('counselor') ||
+    speaker.includes('counsellor') ||
+    speaker.includes('employee') ||
+    speaker.includes('clerk') ||
+    speaker.includes('assistant')
+  ) {
+    return 'UniversityStaff';
+  }
+
+  return fallbackIndex === 0 ? 'Student' : 'UniversityStaff';
+}
+
+function normalizeCampusTranscript(transcript: string) {
+  const lines = String(transcript || '')
+    .split('\n')
+    .map(cleanTranscriptLine)
+    .filter(Boolean)
+    .filter((line) => !isStageDirection(line));
+
+  const speakerNames: string[] = [];
+
+  lines.forEach((line) => {
+    const match = line.match(/^([A-Za-z][A-Za-z\s.-]{0,40}):\s*(.+)$/);
+
+    if (!match) return;
+
+    const rawSpeaker = match[1].trim();
+
+    if (!speakerNames.includes(rawSpeaker)) {
+      speakerNames.push(rawSpeaker);
+    }
+  });
+
+  const speakerMap = new Map<string, string>();
+
+  speakerNames.forEach((speakerName, index) => {
+    speakerMap.set(speakerName, mapSpeakerName(speakerName, index));
+  });
+
+  const normalizedLines = lines.map((line) => {
+    const match = line.match(/^([A-Za-z][A-Za-z\s.-]{0,40}):\s*(.+)$/);
+
+    if (!match) {
+      return line;
+    }
+
+    const rawSpeaker = match[1].trim();
+    const spokenText = match[2].trim();
+    const mappedSpeaker = speakerMap.get(rawSpeaker) || 'UniversityStaff';
+
+    return `${mappedSpeaker}: ${spokenText}`;
+  });
+
+  const normalizedTranscript = normalizedLines.join('\n');
+  const hasStudent = /^Student:/m.test(normalizedTranscript);
+  const hasUniversityStaff = /^UniversityStaff:/m.test(normalizedTranscript);
+
+  return {
+    transcript: normalizedTranscript,
+    canUseMultiSpeaker: hasStudent && hasUniversityStaff,
+  };
+}
+
+function buildSingleSpeakerStimulusPrompt(task: any) {
+  const isCampus = isCampusConversationTask(task);
 
   return `
 Read this TOEFL iBT Speaking stimulus audio aloud.
 
 Task type: ${task.taskType}
+
 Style:
 - Natural North American university English
 - Clear TOEFL-style pace
 - Do not read stage directions aloud
 - Do not add anything not in the transcript
 - Sound natural, but keep pronunciation clear
-${isCampus ? '- Campus conversation style, with realistic student/university context' : '- Academic lecture style, with a professor explaining clearly'}
+${
+  isCampus
+    ? '- Campus conversation style, with realistic student/university context'
+    : '- Academic lecture style, with a professor explaining clearly'
+}
 
 Transcript:
 ${task.listeningTranscript}
 `;
 }
 
-async function synthesizeStimulusAudio(ai: GoogleGenAI, task: any) {
-  const isCampus = task.taskType === 'integrated_campus';
+function buildCampusConversationStimulusPrompt(task: any, normalizedTranscript: string) {
+  return `
+Read this TOEFL iBT Speaking Task 2 campus conversation aloud.
 
+Use exactly two speakers:
+- Student: a young university student
+- UniversityStaff: a university professor, advisor, or staff member
+
+Rules:
+- Use the speaker labels only to assign voices.
+- Do not read the speaker labels aloud.
+- Do not read stage directions aloud.
+- Do not add anything not in the transcript.
+- Keep a natural TOEFL campus conversation pace.
+- Student and UniversityStaff must sound clearly different.
+
+Transcript:
+${normalizedTranscript}
+`;
+}
+
+async function generateAudioBytes({
+  ai,
+  prompt,
+  speechConfig,
+}: {
+  ai: GoogleGenAI;
+  prompt: string;
+  speechConfig: any;
+}) {
   const response = await ai.models.generateContent({
     model: TTS_MODEL,
     contents: [
       {
         parts: [
           {
-            text: buildStimulusPrompt(task),
+            text: prompt,
           },
         ],
       },
     ],
     config: {
       responseModalities: ['AUDIO'],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: isCampus ? 'Puck' : 'Charon',
-          },
-        },
-      },
+      speechConfig,
     },
   });
 
   const audioBase64 = getInlineAudioBase64(response);
 
   if (!audioBase64) {
-    throw new Error(`Gemini TTS returned no audio for ${task.id}.`);
+    throw new Error('Gemini TTS returned no audio.');
   }
 
   const pcmBytes = base64ToUint8Array(audioBase64);
   return pcmToWavBytes(pcmBytes);
+}
+
+async function synthesizeCampusConversationAudio(
+  ai: GoogleGenAI,
+  task: any,
+  normalizedTranscript: string
+) {
+  return generateAudioBytes({
+    ai,
+    prompt: buildCampusConversationStimulusPrompt(task, normalizedTranscript),
+    speechConfig: {
+      multiSpeakerVoiceConfig: {
+        speakerVoiceConfigs: [
+          {
+            speaker: 'Student',
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: 'Puck',
+              },
+            },
+          },
+          {
+            speaker: 'UniversityStaff',
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: 'Charon',
+              },
+            },
+          },
+        ],
+      },
+    },
+  });
+}
+
+async function synthesizeSingleSpeakerStimulusAudio(ai: GoogleGenAI, task: any) {
+  const isCampus = isCampusConversationTask(task);
+
+  return generateAudioBytes({
+    ai,
+    prompt: buildSingleSpeakerStimulusPrompt(task),
+    speechConfig: {
+      voiceConfig: {
+        prebuiltVoiceConfig: {
+          voiceName: isCampus ? 'Puck' : 'Charon',
+        },
+      },
+    },
+  });
+}
+
+async function synthesizeStimulusAudio(ai: GoogleGenAI, task: any) {
+  const isCampus = isCampusConversationTask(task);
+
+  if (isCampus) {
+    const normalized = normalizeCampusTranscript(task.listeningTranscript);
+
+    if (normalized.canUseMultiSpeaker) {
+      try {
+        return await synthesizeCampusConversationAudio(
+          ai,
+          task,
+          normalized.transcript
+        );
+      } catch (error) {
+        console.error(
+          'Multi-speaker TTS failed, falling back to single speaker:',
+          error
+        );
+      }
+    } else {
+      console.warn(
+        `Campus task ${task.id} does not contain clear Student/UniversityStaff speaker labels. Falling back to single-speaker TTS.`
+      );
+    }
+  }
+
+  return synthesizeSingleSpeakerStimulusAudio(ai, task);
 }
 
 function updateTaskStimulusAudio({
@@ -207,6 +417,7 @@ Deno.serve(async (req) => {
 
     const sectionId = String(body.sectionId || '').trim();
     const taskId = String(body.taskId || '').trim();
+    const force = Boolean(body.force);
 
     if (!sectionId) {
       return new Response(JSON.stringify({ error: 'sectionId is required.' }), {
@@ -253,7 +464,7 @@ Deno.serve(async (req) => {
       throw new Error('This speaking task has no stimulus audio to generate.');
     }
 
-    if (task.stimulusAudioUrl && task.stimulusAudioPath) {
+    if (!force && task.stimulusAudioUrl && task.stimulusAudioPath) {
       return new Response(
         JSON.stringify({
           task,
