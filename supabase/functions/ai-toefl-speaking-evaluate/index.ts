@@ -47,14 +47,18 @@ function isRetryableGeminiError(error: unknown) {
   }
 
   const message =
-    error instanceof Error ? error.message.toLowerCase() : String(error || '').toLowerCase();
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error || '').toLowerCase();
 
   return (
     message.includes('high demand') ||
     message.includes('unavailable') ||
     message.includes('overloaded') ||
     message.includes('rate limit') ||
-    message.includes('temporarily')
+    message.includes('temporarily') ||
+    message.includes('timeout') ||
+    message.includes('deadline')
   );
 }
 
@@ -66,8 +70,8 @@ async function runWithRetry<T>(
     baseDelayMs?: number;
   }
 ) {
-  const maxAttempts = options.maxAttempts || 4;
-  const baseDelayMs = options.baseDelayMs || 1500;
+  const maxAttempts = options.maxAttempts || 6;
+  const baseDelayMs = options.baseDelayMs || 2500;
 
   let lastError: unknown = null;
 
@@ -88,7 +92,10 @@ async function runWithRetry<T>(
         break;
       }
 
-      const waitMs = baseDelayMs * attempt + Math.floor(Math.random() * 750);
+      const exponentialDelay = baseDelayMs * Math.pow(1.7, attempt - 1);
+      const jitter = Math.floor(Math.random() * 1000);
+      const waitMs = Math.round(exponentialDelay + jitter);
+
       await delay(waitMs);
     }
   }
@@ -129,6 +136,7 @@ function normalizeSeverity(value: unknown): 'low' | 'medium' | 'high' {
 
   if (raw === 'high') return 'high';
   if (raw === 'low') return 'low';
+
   return 'medium';
 }
 
@@ -145,6 +153,7 @@ function scoreToLevel(score30: number) {
   if (score30 >= 26) return 'Advanced';
   if (score30 >= 18) return 'High-Intermediate';
   if (score30 >= 10) return 'Low-Intermediate';
+
   return 'Below Low-Intermediate';
 }
 
@@ -254,8 +263,8 @@ async function evaluateTaskAudio({
       }),
     {
       label: `Gemini audio evaluation for ${task.id}`,
-      maxAttempts: 4,
-      baseDelayMs: 1800,
+      maxAttempts: 6,
+      baseDelayMs: 2500,
     }
   );
 
@@ -569,7 +578,7 @@ Deno.serve(async (req) => {
 
       taskResults.push(taskResult);
 
-      await delay(600);
+      await delay(1200);
     }
 
     const averageScore4 =
@@ -667,19 +676,31 @@ Deno.serve(async (req) => {
         ? error.message
         : 'Unknown TOEFL Speaking evaluation error.';
 
+    const lowerMessage = message.toLowerCase();
+
     const isGeminiCapacityError =
+      status === 429 ||
+      status === 500 ||
+      status === 502 ||
       status === 503 ||
-      message.toLowerCase().includes('high demand') ||
-      message.toLowerCase().includes('unavailable');
+      status === 504 ||
+      lowerMessage.includes('high demand') ||
+      lowerMessage.includes('unavailable') ||
+      lowerMessage.includes('overloaded') ||
+      lowerMessage.includes('rate limit') ||
+      lowerMessage.includes('temporarily') ||
+      lowerMessage.includes('timeout') ||
+      lowerMessage.includes('deadline');
 
     return new Response(
       JSON.stringify({
         error: isGeminiCapacityError
           ? 'Gemini is temporarily overloaded while evaluating your speaking audio. Your recordings are saved. Please try submitting again in a few minutes.'
           : message,
+        retryable: isGeminiCapacityError,
       }),
       {
-        status: isGeminiCapacityError ? 503 : 500,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
